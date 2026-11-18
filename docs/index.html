@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reason in the Words You Speak: Idiolectal Paraphrasing Off-Policy Traces for Reasoning Distillation in VideoLLMs</title>
+  <meta name="description" content="Echo-GRPO paraphrases privileged reasoning traces into the student's own idiolect via Dual-Reference Decoding, so the reasoning behind a rewarded answer is actually learned. VideoEcho-R1. Accepted to NeurIPS 2026.">
+  <meta property="og:title" content="Reason in the Words You Speak: Idiolectal Paraphrasing Off-Policy Traces for Reasoning Distillation in VideoLLMs">
+  <meta property="og:description" content="Echo-GRPO lets a VideoLLM reason in the words it speaks. NeurIPS 2026.">
+  <meta property="og:image" content="static/figures/fig1_motivation.png">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" type="image/svg+xml" href="static/logos/echo-emblem.svg">
+  <script>(function(){try{var t=localStorage.getItem('theme');if(!t)t=matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';if(t==='dark')document.documentElement.classList.add('dark');}catch(e){}})();</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+  <style>
+    :root{
+      --brand:#2b4f9e;        /* MLV lab blue */
+      --brand-d:#1d3a78;
+      --brand-dd:#142a59;
+      --brand-l:#eef3fc;
+      --brand-l2:#dbe6fa;
+      --ink:#171a21;
+      --muted:#525b69;
+      --muted-l:#6b7280;
+      --line:#e6eaf0;
+      --bg:#ffffff;
+      --soft:#f7f9fc;
+      --radius:16px;
+      --shadow:0 1px 2px rgba(20,30,60,.04), 0 8px 30px rgba(20,30,60,.06);
+      --shadow-h:0 6px 16px rgba(20,30,60,.08), 0 18px 48px rgba(20,30,60,.12);
+      --maxw:1080px;
+      --textw:880px;
+    }
+    *{box-sizing:border-box;}
+    html{scroll-behavior:smooth;}
+    body{
+      margin:0;
+      font-family:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
+      color:var(--ink);
+      background:var(--bg);
+      line-height:1.68;
+      font-size:17px;
+      -webkit-font-smoothing:antialiased;
+      text-rendering:optimizeLegibility;
+    }
+    a{color:var(--brand);text-decoration:none;}
+    a:hover{text-decoration:underline;}
+    a:focus-visible,.btn:focus-visible,.copy-btn:focus-visible,.navlinks a:focus-visible,.zoom:focus-visible{
+      outline:3px solid var(--brand);outline-offset:3px;border-radius:8px;text-decoration:none;
+    }
+    .wrap{max-width:var(--maxw);margin:0 auto;padding:0 28px;}
+    .narrow{max-width:var(--textw);margin-left:auto;margin-right:auto;}
+    h1,h2,h3,h4{font-family:'Plus Jakarta Sans','Inter',sans-serif;}
+
+    /* ---------- top nav ---------- */
+    nav.topbar{
+      position:sticky;top:0;z-index:50;
+      backdrop-filter:saturate(180%) blur(10px);
+      background:rgba(255,255,255,.82);
+      border-bottom:1px solid var(--line);
+    }
+    .topbar .wrap{display:flex;align-items:center;justify-content:space-between;height:56px;}
+    .topbar .brand-mini{display:flex;align-items:center;gap:10px;font-weight:700;font-family:'Plus Jakarta Sans';letter-spacing:-.01em;color:var(--ink);}
+    .topbar .brand-mini img{height:26px;width:26px;border-radius:6px;}
+    .topbar .brand-mini b{color:var(--brand);}
+    .topbar .nav-logo{line-height:0;display:block;flex-shrink:0;}
+    .topbar .nav-logo img{height:30px;width:auto;max-width:min(200px,46vw);display:block;object-fit:contain;transition:opacity .15s;}
+    .topbar .nav-logo:hover img{opacity:.82;}
+    html.dark .topbar .nav-logo img{filter:invert(1) hue-rotate(180deg);}
+    .topbar .nav-left{display:flex;align-items:center;gap:13px;}
+    .topbar .nav-sep{width:1px;height:22px;background:var(--line);flex-shrink:0;}
+    .navlinks{display:flex;gap:22px;font-size:.93rem;font-weight:500;}
+    .navlinks a{color:var(--muted);}
+    .navlinks a:hover{color:var(--brand);text-decoration:none;}
+    @media(max-width:780px){.navlinks{display:none;}}
+
+    /* ---------- hero ---------- */
+    header.hero{
+      padding:62px 0 10px;
+      text-align:center;
+      background:
+        radial-gradient(1100px 380px at 50% -120px, var(--brand-l) 0%, rgba(238,243,252,0) 70%),
+        linear-gradient(180deg,#fbfcfe 0%, #ffffff 60%);
+    }
+    .badge{
+      display:inline-flex;align-items:center;gap:8px;
+      font-size:.8rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+      color:var(--brand-d);background:#fff;border:1px solid var(--brand-l2);
+      padding:7px 16px;border-radius:999px;margin-bottom:24px;
+      box-shadow:var(--shadow);
+    }
+    .badge i{color:var(--brand);}
+    h1.title{
+      font-size:clamp(1.3rem,5.2vw,2.7rem);line-height:1.16;font-weight:800;letter-spacing:-.025em;
+      margin:0 auto 14px;max-width:1040px;overflow-wrap:break-word;
+    }
+    h1 .brand{
+      white-space:nowrap;
+      color:var(--brand-d);
+    }
+    .subtitle{font-size:clamp(1rem,2.6vw,1.16rem);color:var(--muted);font-weight:500;margin:0 auto 30px;max-width:720px;}
+
+    .authors{font-size:1.07rem;margin:18px auto 6px;line-height:2;max-width:840px;}
+    .authors .au{white-space:nowrap;margin:0 5px;color:var(--ink);font-weight:600;}
+    .authors a.au:hover{color:var(--brand);text-decoration:none;}
+    .sup{color:var(--brand);font-weight:700;font-size:.82em;}
+    .affil{color:var(--muted);font-size:.98rem;margin:12px auto 2px;display:flex;gap:22px;justify-content:center;flex-wrap:wrap;}
+    .affil span{display:inline-flex;align-items:center;gap:6px;}
+    .notes{color:var(--muted-l);font-size:.86rem;margin-top:4px;}
+
+    /* ---------- buttons ---------- */
+    .buttons{display:flex;gap:13px;justify-content:center;flex-wrap:wrap;margin:32px 0 8px;}
+    .btn{
+      display:inline-flex;align-items:center;gap:9px;
+      background:#171a21;color:#fff;font-family:'Inter',sans-serif;
+      padding:12px 23px;border-radius:999px;
+      font-size:.98rem;font-weight:600;border:1px solid #171a21;
+      transition:transform .12s ease,box-shadow .2s ease,background .2s ease;
+    }
+    .btn:hover{background:#000;text-decoration:none;transform:translateY(-2px);box-shadow:var(--shadow-h);}
+    .btn i{font-size:1.06rem;}
+    .btn .emoji{font-size:1.15em;line-height:1;}
+    .btn.ghost{background:var(--brand-l);color:var(--brand-d);border:1px solid var(--brand-l2);cursor:default;}
+    .btn.ghost:hover{transform:none;background:var(--brand-l);box-shadow:none;}
+    .btn.ghost .soon{font-size:.68rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;background:#fff;color:var(--brand);padding:2px 8px;border-radius:999px;margin-left:3px;border:1px solid var(--brand-l2);}
+
+    /* ---------- sections ---------- */
+    section{padding:66px 0;}
+    section[id]{scroll-margin-top:70px;}
+    .video-sec{padding-top:28px;padding-bottom:48px;}
+    section.alt{background:var(--soft);border-top:1px solid var(--line);border-bottom:1px solid var(--line);}
+    .eyebrow{
+      display:block;text-align:center;color:var(--brand);font-weight:700;
+      font-size:.8rem;letter-spacing:.13em;text-transform:uppercase;margin-bottom:10px;
+    }
+    h2.section-title{
+      font-size:clamp(1.5rem,4.6vw,1.95rem);font-weight:800;text-align:center;letter-spacing:-.02em;
+      margin:0 0 30px;
+    }
+    .section-sub{text-align:center;color:var(--muted);max-width:660px;margin:0 auto 34px;font-size:1.02rem;}
+    .abstract p{font-size:1.08rem;color:#2b313c;margin:0;text-align:justify;}
+    .abstract b{color:var(--ink);}
+
+    /* ---------- figures ---------- */
+    figure{margin:0;}
+    .fig{
+      background:#fff;border:1px solid var(--line);border-radius:var(--radius);
+      padding:20px;box-shadow:var(--shadow);
+    }
+    .fig img{width:100%;height:auto;display:block;border-radius:8px;}
+    figcaption{font-size:.93rem;color:var(--muted);margin-top:16px;line-height:1.6;}
+    figcaption b{color:var(--ink);}
+    .fig-wide{max-width:1080px;margin-left:auto;margin-right:auto;}
+    .video-player{
+      width:100%;height:auto;aspect-ratio:16/9;display:block;background:#000;
+      border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow-h);
+    }
+    a.zoom{display:block;position:relative;}
+    a.zoom::after{
+      content:"\f00e";font-family:"Font Awesome 6 Free";font-weight:900;
+      position:absolute;top:10px;right:10px;color:#fff;background:rgba(20,30,60,.55);
+      width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;
+      font-size:.8rem;opacity:0;transition:opacity .2s;
+    }
+    a.zoom:hover::after{opacity:1;}
+    a.zoom:hover{text-decoration:none;}
+
+    /* ---------- contributions ---------- */
+    .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;}
+    @media(max-width:820px){.cards{grid-template-columns:1fr;}}
+    .card{
+      background:#fff;border:1px solid var(--line);border-radius:var(--radius);
+      padding:28px 26px;box-shadow:var(--shadow);transition:transform .15s,box-shadow .2s;
+      border-top:3px solid var(--brand);
+    }
+    .card:hover{transform:translateY(-3px);box-shadow:var(--shadow-h);}
+    .card h3{margin:0 0 10px;font-size:1.14rem;letter-spacing:-.01em;color:var(--brand-dd);}
+    .card p{margin:0;font-size:.98rem;color:var(--muted);}
+
+    /* ---------- pipeline ---------- */
+    .pipeline{display:flex;align-items:stretch;gap:0;flex-wrap:wrap;justify-content:center;margin-top:8px;}
+    .pstep{
+      flex:1;min-width:165px;min-height:160px;background:#fff;border:1px solid var(--line);
+      border-radius:14px;padding:20px 18px;position:relative;box-shadow:var(--shadow);
+    }
+    .pstep .num{
+      width:28px;height:28px;border-radius:50%;background:var(--brand);color:#fff;
+      display:inline-flex;align-items:center;justify-content:center;font-size:.85rem;font-weight:700;margin-bottom:12px;
+    }
+    .pstep h4{margin:0 0 6px;font-size:1.02rem;}
+    .pstep p{margin:0;font-size:.88rem;color:var(--muted);line-height:1.55;}
+    .arrow{display:flex;align-items:center;color:var(--brand);font-size:1.5rem;padding:0 8px;}
+    @media(max-width:760px){.arrow{transform:rotate(90deg);padding:8px 0;}.pipeline{flex-direction:column;}.pstep{min-height:0;}}
+
+    /* ---------- tables ---------- */
+    .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);}
+    table{border-collapse:collapse;width:100%;font-size:.92rem;background:#fff;}
+    th,td{padding:11px 14px;text-align:center;border-bottom:1px solid var(--line);white-space:nowrap;}
+    thead th{background:var(--brand-dd);color:#fff;font-weight:700;font-family:'Plus Jakarta Sans';border-bottom:none;}
+    thead tr:first-child th{border-bottom:1px solid rgba(255,255,255,.18);}
+    td:first-child,th:first-child{text-align:left;}
+    tbody tr:hover{background:#fafbfe;}
+    tr.group td{text-align:left;font-weight:800;background:#eceef3;color:var(--ink);font-size:.8rem;letter-spacing:.06em;text-transform:uppercase;border-top:2px solid #c9d0dd;}
+    tr.ours{background:var(--brand-l2)!important;}
+    tr.ours td{color:var(--brand-dd);font-weight:800;}
+    tr.ours td:first-child{box-shadow:inset 4px 0 0 0 var(--brand);}
+    tr.ours td:first-child::before{
+      content:"";display:inline-block;width:18px;height:18px;vertical-align:-4px;margin-right:8px;
+      background:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%232b4f9e'/><stop offset='1' stop-color='%233f6fd0'/></linearGradient></defs><rect width='24' height='24' rx='6.5' fill='url(%23g)'/><circle cx='10.2' cy='10.2' r='4.6' fill='none' stroke='white' stroke-width='1.7'/><path d='M8.8 8.05L12.5 10.2L8.8 12.35Z' fill='white'/><path d='M13.9 13.9L18 18' stroke='white' stroke-width='2.1' stroke-linecap='round'/></svg>") center/contain no-repeat;
+    }
+    .colsep{border-left:1px solid var(--line);}
+    thead .colsep{border-left:1px solid rgba(255,255,255,.18);}
+    .tbl-cap{font-size:.9rem;color:var(--muted);margin:16px auto 0;text-align:center;max-width:780px;}
+    .scroll-hint{display:none;text-align:center;color:var(--muted-l);font-size:.78rem;margin:10px 0 0;}
+
+    /* ---------- bibtex ---------- */
+    .bibwrap{position:relative;}
+    pre.bibtex{
+      background:#0e1320;color:#dde6f5;border-radius:var(--radius);padding:24px 26px;margin:0;
+      overflow-x:auto;font-size:.86rem;line-height:1.7;
+      font-family:'JetBrains Mono',ui-monospace,Menlo,Consolas,monospace;
+      border:1px solid #1b2336;
+    }
+    pre.bibtex .k{color:#7aa2f7;}
+    pre.bibtex .v{color:#9ece6a;}
+    .copy-btn{
+      position:absolute;top:14px;right:14px;background:#1b2336;color:#cdd6f4;border:1px solid #2a3550;
+      border-radius:9px;padding:7px 13px;font-size:.82rem;cursor:pointer;font-weight:600;font-family:'Inter';
+      transition:background .15s;
+    }
+    .copy-btn:hover{background:#27324d;}
+
+    /* ---------- footer ---------- */
+    footer{padding:54px 0 44px;border-top:1px solid var(--line);background:var(--soft);text-align:center;}
+    .lab-logo{display:inline-block;margin:0 auto 14px;line-height:0;}
+    .lab-logo img{height:124px;width:auto;border-radius:20px;box-shadow:var(--shadow-h);display:block;transition:transform .15s;}
+    .lab-logo:hover img{transform:translateY(-2px);}
+    .lab-cap{color:var(--muted);font-size:.9rem;margin:0 0 26px;font-weight:600;letter-spacing:.01em;}
+    .uni-logos{display:flex;align-items:stretch;justify-content:center;gap:20px;flex-wrap:wrap;margin-bottom:28px;}
+    .logo-card{
+      display:flex;align-items:center;justify-content:center;
+      background:#fff;border:1px solid var(--line);border-radius:14px;
+      padding:14px 26px;box-shadow:var(--shadow);min-height:86px;transition:transform .15s,box-shadow .2s;
+    }
+    .logo-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-h);}
+    .logo-card img{height:50px;width:auto;display:block;}
+    .foot-note{color:var(--muted);font-size:.88rem;line-height:1.7;}
+    .foot-note a{color:var(--muted);text-decoration:underline;}
+
+    /* misc */
+    .mt40{margin-top:40px;}
+    code.inl{background:var(--brand-l);color:var(--brand-dd);padding:1px 7px;border-radius:6px;font-family:'JetBrains Mono';font-size:.85em;}
+    .news-sec{padding:42px 0 46px;}
+    .newslist{list-style:none;padding:0;margin:16px auto 0;max-width:620px;}
+    .newslist li{display:flex;gap:14px;align-items:baseline;padding:11px 2px;border-bottom:1px solid var(--line);color:var(--muted);font-size:.99rem;line-height:1.55;}
+    .newslist li:last-child{border-bottom:none;}
+    .newslist .d{flex-shrink:0;min-width:98px;color:var(--brand-d);font-weight:700;font-size:.84rem;letter-spacing:.01em;}
+    .newslist b{color:var(--ink);font-weight:600;}
+    @media(max-width:720px){.newslist li{flex-direction:column;gap:2px;}.newslist .d{min-width:0;}}
+
+    header.hero{position:relative;overflow:hidden;}
+
+    /* ---------- nav theme toggle ---------- */
+    .nav-right{display:flex;align-items:center;gap:20px;}
+    .theme-btn{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:999px;background:transparent;border:1px solid var(--line);color:var(--muted);cursor:pointer;transition:color .15s,border-color .15s,background .15s;}
+    .theme-btn:hover{color:var(--brand);border-color:var(--brand-l2);background:var(--brand-l);}
+    .theme-btn .ic-sun{display:none;}
+    html.dark .theme-btn .ic-moon{display:none;}
+    html.dark .theme-btn .ic-sun{display:inline;}
+
+    /* ---------- dark mode ---------- */
+    html.dark{
+      --brand:#5b8aef;--brand-d:#86abf6;--brand-dd:#b6cefb;
+      --brand-l:#18222f;--brand-l2:#26344b;
+      --ink:#e7edf5;--muted:#9aa6b6;--muted-l:#7a8492;
+      --line:#262d3a;--bg:#0d1117;--soft:#131a24;
+      --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 30px rgba(0,0,0,.36);
+      --shadow-h:0 6px 16px rgba(0,0,0,.42),0 18px 48px rgba(0,0,0,.52);
+    }
+    html.dark body{background:var(--bg);color:var(--ink);}
+    html.dark nav.topbar{background:rgba(13,17,23,.82);}
+    html.dark header.hero{background:radial-gradient(1100px 380px at 50% -120px,#17243d 0%,rgba(13,17,23,0) 70%),linear-gradient(180deg,#10151d 0%,#0d1117 60%);}
+    html.dark .badge{background:#121a27;border-color:var(--brand-l2);}
+    html.dark .card,html.dark .fig,html.dark .pstep{background:#161c26;}
+    html.dark table{background:#161c26;}
+    html.dark thead th{background:#1a2233;color:#e7edf5;}
+    html.dark thead tr:first-child th{border-bottom-color:rgba(255,255,255,.12);}
+    html.dark thead .colsep{border-left-color:rgba(255,255,255,.12);}
+    html.dark tr.group td{background:#1a212c;color:#cdd6e4;border-top-color:#2c3645;}
+    html.dark tbody tr:hover{background:#1a212c;}
+    html.dark .btn{background:#e7edf5;color:#0d1117;border-color:#e7edf5;}
+    html.dark .btn:hover{background:#fff;}
+    html.dark .btn.ghost{background:#18222f;color:#86abf6;border-color:#26344b;}
+    html.dark .btn.ghost:hover{background:#18222f;}
+    html.dark .btn.ghost .soon{background:#0d1117;color:#86abf6;border-color:#26344b;}
+    html.dark .abstract p{color:#c9d3e0;}
+    html.dark a.zoom::after{background:rgba(0,0,0,.6);}
+
+    /* ---------- mobile ---------- */
+    @media(max-width:720px){
+      body{font-size:16px;}
+      header.hero{padding:46px 0 12px;}
+      section{padding:48px 0;}
+      .wrap{padding:0 20px;}
+      .brk{display:none;}
+      .authors{font-size:.98rem;line-height:1.9;}
+      .scroll-hint{display:block;}
+      th,td{padding:8px 10px;font-size:.82rem;}
+      table{font-size:.82rem;}
+      .abstract p{text-align:left;}
+      .lab-logo img{height:96px;}
+      .uni-logos{gap:12px;}
+      .logo-card{padding:11px 14px;min-height:72px;}
+      .logo-card img{height:40px;}
+    }
+  
+    /* ---------- Echo-GRPO additions ---------- */
+    :root{ --bad:#c0392b; --bad-l:#fbe9e7; --good:#2e8b62; --good-l:#e6f4ee; }
+    html.dark{ --bad:#ef7a6b; --bad-l:#2a1a1a; --good:#5cc497; --good-l:#14261f; }
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start;}
+    .grid2.wide-right{grid-template-columns:5fr 7fr;}
+    .grid2>*{min-width:0;}
+    @media(max-width:860px){.grid2,.grid2.wide-right{grid-template-columns:minmax(0,1fr);}}
+    .qbox{margin-top:14px;font-size:.95rem;color:var(--muted);}
+    .qbox b{color:var(--ink);}
+    .qbox ol{margin:8px 0 0;padding-left:22px;}
+    .qbox li{margin:2px 0;}
+    .qbox li.gt{color:var(--good);font-weight:700;}
+    .lead{font-size:1.06rem;color:var(--muted);max-width:var(--textw);margin:0 auto 30px;text-align:center;}
+    .lead b{color:var(--ink);}
+    .pill{display:inline-block;font-size:.78rem;font-weight:700;padding:2px 10px;border-radius:999px;margin-right:6px;}
+    .pill.bad{background:var(--bad-l);color:var(--bad);}
+    .pill.good{background:var(--good-l);color:var(--good);}
+    .verdict{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:16px;}
+    .verdict div{border-radius:12px;padding:14px 16px;font-size:.93rem;line-height:1.5;}
+    .verdict .ok{background:var(--good-l);color:var(--ink);}
+    .verdict .no{background:var(--bad-l);color:var(--ink);}
+    .verdict b{display:block;margin-bottom:2px;}
+    .verdict .ok b{color:var(--good);} .verdict .no b{color:var(--bad);}
+    @media(max-width:560px){.verdict{grid-template-columns:1fr;}}
+    .eq{overflow-x:auto;padding:18px 10px 6px;text-align:center;font-size:1.05rem;}
+    .pstep.danger{border-color:#f1c4bd;background:var(--bad-l);}
+    .pstep.danger .num{background:var(--bad);}
+    html.dark .pstep.danger{background:var(--bad-l);border-color:#4a2a28;}
+    .callout{max-width:var(--textw);margin:34px auto 0;padding:18px 22px;border-radius:14px;
+      background:var(--brand-l);border:1px solid var(--brand-l2);color:var(--ink);font-size:1.02rem;line-height:1.6;}
+    .callout i{color:var(--brand);margin-right:8px;}
+    .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:26px;}
+    @media(max-width:760px){.stats{grid-template-columns:1fr;}}
+    .stat{background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px 22px;box-shadow:var(--shadow);}
+    html.dark .stat{background:#161c26;}
+    .stat .n{font-family:'Plus Jakarta Sans';font-weight:800;font-size:2.1rem;line-height:1.1;letter-spacing:-.02em;}
+    .stat .n.bad{color:var(--bad);} .stat .n.good{color:var(--good);} .stat .n.brand{color:var(--brand);}
+    .stat p{margin:6px 0 0;font-size:.92rem;color:var(--muted);}
+    tr.bad td{color:var(--bad);}
+    tr.ours td:first-child::before{
+      background:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect width='24' height='24' rx='6.5' fill='%232b4f9e'/><path d='M7 8.5h7M7 12h5.5M7 15.5h7' stroke='white' stroke-width='1.9' stroke-linecap='round'/><path d='M16.5 10.2c1.3 1 1.3 2.6 0 3.6' stroke='white' stroke-width='1.6' fill='none' stroke-linecap='round'/></svg>") center/contain no-repeat;
+    }
+    tr.plug td{background:var(--good-l);}
+    tr.plug td:first-child{font-weight:700;}
+    td.best{font-weight:800;}
+    .video-card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow);}
+    html.dark .video-card{background:#161c26;}
+    .video-card video{width:100%;aspect-ratio:16/9;display:block;background:#000;border-radius:10px;}
+    .video-card .vcap{font-size:.82rem;color:var(--muted-l);margin-top:8px;}
+    .quote{border-radius:12px;padding:16px 18px;margin-bottom:14px;font-size:.95rem;line-height:1.6;}
+    .quote.bad{background:var(--bad-l);} .quote.good{background:var(--good-l);}
+    .quote b{display:block;margin-bottom:4px;}
+    .quote.bad b{color:var(--bad);} .quote.good b{color:var(--good);}
+    .quote i{color:var(--ink);}
+    footer .foot-note{margin-top:6px;}
+    h1 .title-2{display:block;font-size:.62em;font-weight:700;letter-spacing:-.015em;margin-top:8px;color:var(--ink);}
+    h3.section-title{text-align:center;font-weight:800;letter-spacing:-.02em;}
+    /* ---------- interactive figures ---------- */
+    .viz{position:relative;}
+    .tv-bar,.dr-ctl{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px;}
+    .dr-ctl{justify-content:flex-start;}
+    .tv-tabs{display:inline-flex;background:var(--soft);border:1px solid var(--line);border-radius:999px;padding:4px;gap:4px;flex-wrap:wrap;}
+    .tv-tab{border:0;background:transparent;color:var(--muted);font:600 .9rem 'Inter',sans-serif;padding:8px 16px;border-radius:999px;cursor:pointer;transition:background .2s,color .2s;}
+    .tv-tab small{font-weight:500;opacity:.75;margin-left:4px;}
+    .tv-tab[aria-pressed="true"]{background:#fff;color:var(--ink);box-shadow:var(--shadow);}
+    .viz.is-echo .tv-tab[aria-pressed="true"],[data-viz="trace"].is-echo .tv-tab[aria-pressed="true"]{color:var(--good);}
+    .tv-play{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--brand-l2);background:var(--brand-l);color:var(--brand-d);
+      font:600 .9rem 'Inter',sans-serif;padding:9px 18px;border-radius:999px;cursor:pointer;transition:transform .12s,background .2s;}
+    .tv-play:hover{transform:translateY(-1px);background:var(--brand-l2);}
+    .tv-meter.two{grid-template-columns:1fr 1fr;}
+    .tv-meter{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px;}
+    .tv-m{border:1px solid var(--line);border-radius:12px;padding:10px 14px;transition:background .3s,border-color .3s;}
+    .tv-m b{display:block;font:800 1.45rem 'Plus Jakarta Sans',sans-serif;letter-spacing:-.02em;line-height:1.2;}
+    .tv-m span{font-size:.82rem;color:var(--muted);}
+    .tv-m.bad{background:var(--bad-l);border-color:transparent;} .tv-m.bad b{color:var(--bad);}
+    .tv-m.good{background:var(--good-l);border-color:transparent;} .tv-m.good b{color:var(--good);}
+    @media(max-width:620px){.tv-meter{grid-template-columns:1fr;}}
+    .tv-text{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 18px;max-height:340px;overflow:auto;
+      font:500 .82rem/2.05 'JetBrains Mono',ui-monospace,monospace;color:#171a21;}
+    .tk{padding:1px 3px;margin:0 1px;border-radius:3px;background:#f3f4f6;color:#9aa1ac;transition:background .25s,color .25s;}
+    .tk.on{color:#171a21;}
+    .tk.key{text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:3px;font-weight:700;}
+    .tk.clip{background:#a0a1a5!important;color:#111;outline:2px solid #111;outline-offset:0;}
+    .tk.pop{animation:tkpop .45s ease;}
+    @keyframes tkpop{0%{transform:scale(1)}40%{transform:scale(1.35)}100%{transform:scale(1)}}
+    .tk{display:inline-block;}
+    .tv-legend{display:flex;gap:18px;flex-wrap:wrap;font-size:.82rem;color:var(--muted);margin-top:10px;}
+    .tv-legend i{display:inline-block;width:22px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:6px;}
+    .tv-legend i.g{background:#a0a1a5;outline:2px solid #111;}
+    .tv-legend i.ramp{width:60px;background:linear-gradient(90deg,#f7f3e8,#ffdcd3,#ff9392,#fd7172);}
+    .tv-legend u{text-decoration-thickness:2px;text-underline-offset:3px;font-weight:700;color:var(--ink);}
+    .tv-cap{font-size:.95rem;color:var(--muted);margin:12px 0 0;min-height:1.6em;}
+    .tv-cap b{color:var(--ink);}
+    .tv-tip{position:absolute;z-index:5;pointer-events:none;background:#0e1320;color:#e7edf5;border-radius:10px;padding:8px 12px;font-size:.8rem;
+      display:flex;flex-direction:column;gap:1px;box-shadow:var(--shadow-h);min-width:150px;}
+    .tv-tip[hidden]{display:none;}
+    .tv-tip b{font-family:'JetBrains Mono',monospace;font-size:.9rem;}
+    .tv-tip em{font-style:normal;font-weight:700;} .tv-tip em.bad{color:#ff8b7e;} .tv-tip em.good{color:#6fd3a5;}
+    /* DRD */
+    .dr-sent{font:500 1.05rem/1.7 'Inter',sans-serif;background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin-bottom:16px;text-align:center;}
+    .dr-sent .slot{display:inline-block;min-width:64px;padding:0 8px;border-bottom:2px dashed var(--brand);color:var(--muted-l);font-weight:700;transition:all .35s;}
+    .dr-sent .slot.fill{border-bottom-style:solid;color:var(--good);background:var(--good-l);border-radius:6px 6px 0 0;}
+    .dr-cols{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;gap:12px;align-items:center;}
+    @media(max-width:820px){.dr-cols{grid-template-columns:1fr;}.dr-op{transform:rotate(90deg);justify-self:center;}}
+    .dr-op{font:800 1.6rem 'Plus Jakarta Sans';color:var(--muted-l);}
+    .dr-col{border:1px solid var(--line);border-radius:12px;padding:12px 14px;transition:box-shadow .3s,border-color .3s;}
+    .dr-col.lit{border-color:var(--good);box-shadow:0 0 0 3px var(--good-l);}
+    .dr-h{font:700 .92rem 'Plus Jakarta Sans';margin-bottom:8px;} .dr-h small{display:block;font:500 .75rem 'Inter';color:var(--muted-l);}
+    .dr-col.d .dr-h{color:#2e75b6;} .dr-col.s .dr-h{color:#b8860b;} .dr-col.p .dr-h{color:var(--good);}
+    .dr-row{display:grid;grid-template-columns:62px 1fr 44px;gap:8px;align-items:center;font:500 .82rem 'JetBrains Mono',monospace;margin:5px 0;}
+    .dr-row .b{height:14px;background:var(--soft);border-radius:4px;overflow:hidden;}
+    .dr-row .b i{display:block;height:100%;width:0;border-radius:4px;transition:width .6s cubic-bezier(.2,.8,.2,1);}
+    .dr-col.d .b i{background:#7fb3e6;} .dr-col.s .b i{background:#f2cf5b;} .dr-col.p .b i{background:#9fd6bd;}
+    .dr-row .v{text-align:right;color:var(--muted);}
+    .dr-row.out{opacity:.45;} .dr-row.out .w{text-decoration:line-through;}
+    .dr-row.win .w{color:var(--good);font-weight:800;} .dr-row.win .b i{background:var(--good);}
+    /* results explorer */
+    .rx-bb{margin-bottom:10px;}
+    .rx-chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;}
+    .chip{border:1px solid var(--line);background:transparent;color:var(--muted);font:600 .82rem 'Inter';padding:6px 12px;border-radius:999px;cursor:pointer;}
+    .chip[aria-pressed="true"]{background:var(--brand-dd);border-color:var(--brand-dd);color:#fff;}
+    .rx-row{display:grid;grid-template-columns:170px 1fr;gap:12px;align-items:center;margin:9px 0;}
+    .rx-row .n{font-size:.92rem;color:var(--muted);text-align:right;}
+    .rx-row .b{position:relative;height:26px;background:var(--soft);border-radius:6px;}
+    .rx-row .b i{position:absolute;left:0;top:0;bottom:0;width:0;background:#c7cfdb;border-radius:6px;transition:width .7s cubic-bezier(.2,.8,.2,1);}
+    .rx-row .b em{position:absolute;right:8px;top:50%;transform:translateY(-50%);font:700 .85rem 'Inter';font-style:normal;color:var(--ink);}
+    .rx-row.ours .n{color:var(--brand-dd);font-weight:800;} .rx-row.ours .b i{background:var(--brand);}
+    .rx-row.best .b em::after{content:" \2605";color:#e0a800;}
+    @media(max-width:620px){.rx-row{grid-template-columns:110px 1fr;}.rx-row .n{font-size:.8rem;}}
+    html.dark .tv-tab[aria-pressed="true"]{background:#232b38;}
+    html.dark .rx-row .b i{background:#3a4556;} html.dark .rx-row.ours .b i{background:var(--brand);}
+    /* ---------- v2 interactive ---------- */
+    .navlinks a.cur{color:var(--brand);}
+    .hero-fig{padding:18px;}
+    .hero-cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+    @media(max-width:860px){.hero-cols{grid-template-columns:1fr;}}
+    .hero-pane{border:1px solid var(--line);border-radius:14px;padding:14px;transition:box-shadow .4s,border-color .4s;}
+    .hero-pane.mixed .hp-h b{color:var(--bad);} .hero-pane.echo .hp-h b{color:var(--good);}
+    .hero-pane.done.bad{border-color:#f1c4bd;} .hero-pane.done.good{border-color:#bfe3d0;box-shadow:0 0 0 3px var(--good-l);}
+    .hp-h{display:flex;flex-direction:column;margin-bottom:10px;} .hp-h b{font:800 1.1rem 'Plus Jakarta Sans';} .hp-h span{font-size:.85rem;color:var(--muted);}
+    .hp-meters{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;}
+    .hp-m{background:var(--soft);border-radius:10px;padding:8px 10px;} .hp-m b{display:block;font:800 1.25rem 'Plus Jakarta Sans';line-height:1.2;} .hp-m span{font-size:.72rem;color:var(--muted);line-height:1.25;display:block;}
+    .hero-pane.done.bad .clipm{background:var(--bad-l);} .hero-pane.done.bad .clipm b{color:var(--bad);}
+    .hero-pane.done.good .clipm{background:var(--good-l);} .hero-pane.done.good .clipm b{color:var(--good);}
+    .hp-text{background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px 14px;height:250px;overflow:auto;font:500 .8rem/2 'JetBrains Mono',ui-monospace,monospace;color:#171a21;scroll-behavior:smooth;}
+    .tk.rare{box-shadow:inset 0 -2px 0 #e05252;}
+    .hero-ctl{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:14px;}
+    @media(max-width:620px){.hp-meters{grid-template-columns:1fr 1fr 1fr;gap:4px;}.hp-m{padding:6px;} .hp-m b{font-size:1rem;}}
+    /* pipeline */
+    .pp-ctl{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px;}
+    .pp-svg{width:100%;height:auto;display:block;font-family:'Inter',sans-serif;}
+    .pp-box rect{fill:#fff;stroke:var(--line);stroke-width:1.5;transition:fill .4s,stroke .4s,opacity .4s;}
+    .pp-box text{font-size:13px;fill:var(--ink);font-weight:700;} .pp-box text.sub{font-size:11px;font-weight:500;fill:var(--muted);}
+    .pp-box.policy rect{fill:var(--soft);} .pp-box.update rect{fill:var(--brand-l);stroke:var(--brand-l2);}
+    .pp-box.rew rect{fill:var(--soft);} .pp-box.rew text{font-size:12px;}
+    .pp-box.teacher rect{fill:var(--bad-l);stroke:var(--bad);} .pp-box.teacher text{fill:var(--bad);}
+    .pp-box.drd rect{fill:var(--good-l);stroke:var(--good);} .pp-box.drd text{fill:var(--good);}
+    .pp-group{fill:none;stroke:var(--line);stroke-dasharray:6 5;}
+    .pp-arrow{fill:none;stroke:#8a919e;stroke-width:2;} .pp-arrow.thin{stroke:#cdd1d6;stroke-width:1.4;} .pp-arrow.teach{stroke:var(--bad);}
+    .pp-svg[data-mode="echo"] .pp-arrow.teach{stroke:var(--good);}
+    .pp-lbl{font-size:12px;fill:var(--muted);}
+    .pp-box.roll{opacity:0;transition:opacity .35s;} .pp-box.rew{opacity:0;transition:opacity .35s;}
+    .s1 .pp-box.roll{opacity:1;} .s2 .pp-box.rew{opacity:1;}
+    .pp-svg{min-height:200px;}
+    .s1 .pp-box.r0{transition-delay:0s}.s1 .pp-box.r1{transition-delay:.08s}.s1 .pp-box.r2{transition-delay:.16s}.s1 .pp-box.r3{transition-delay:.24s}.s1 .pp-box.r4{transition-delay:.32s}.s1 .pp-box.r5{transition-delay:.4s}
+    .pp-svg[data-mode="mixed"] .pp-box.r5 rect{fill:var(--bad-l);stroke:var(--bad);} .pp-svg[data-mode="mixed"] .pp-box.r5 text{fill:var(--bad);}
+    .pp-svg[data-mode="echo"] .pp-box.r5 rect{fill:var(--good-l);stroke:var(--good);} .pp-svg[data-mode="echo"] .pp-box.r5 text{fill:var(--good);}
+    .s3 .pp-box.update rect{stroke:var(--brand);stroke-width:2.5;}
+    .pp-stamps rect{fill:#f7d7d2;transition:fill .3s;} .s3 .pp-stamps rect.clip{fill:#a0a1a5;stroke:#111;stroke-width:1;}
+    .pp-svg .hidden{display:none;}
+    html.dark .pp-box rect{fill:#161c26;} html.dark .pp-box.policy rect,html.dark .pp-box.rew rect{fill:#1a2233;}
+    /* epsilon */
+    .ep-top{display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin-bottom:8px;}
+    .ep-lab{font-size:.95rem;color:var(--muted);} .ep-lab b{color:var(--ink);font-family:'JetBrains Mono';}
+    .ep-range{flex:1;min-width:200px;accent-color:var(--brand);}
+    .ep-svg{width:100%;height:auto;display:block;font-family:'Inter';}
+    .ep-shade{fill:#fbe9e7;opacity:.6;} html.dark .ep-shade{fill:#2a1a1a;}
+    .ep-axis{stroke:var(--line);} .ep-tick{font-size:11px;fill:var(--muted);}
+    .ep-bar{transition:opacity .3s,fill .3s;} .ep-bar.out{stroke:#111;stroke-width:1;}
+    .ep-line{stroke:var(--bad);stroke-width:2;stroke-dasharray:5 4;} .ep-eps{font-size:12px;font-weight:700;fill:var(--bad);}
+    .ep-stats{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px;} @media(max-width:560px){.ep-stats{grid-template-columns:1fr;}}
+    .ep-words{margin-top:10px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;}
+    .ep-wl{font-size:.85rem;color:var(--muted);margin-right:4px;}
+    .ep-w{font:600 .82rem 'JetBrains Mono';background:#a0a1a5;color:#111;border-radius:5px;padding:2px 7px;outline:1.5px solid #111;}
+    .ep-w small{font-weight:400;margin-left:5px;opacity:.75;} .ep-w.key{background:#fd7172;}
+    /* curves */
+    .cv-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px;}
+    .cv-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+    .cv-legend{display:flex;gap:6px;flex-wrap:wrap;}
+    .cv-key{border:1px solid var(--line);background:transparent;color:var(--ink);font:600 .8rem 'Inter';padding:5px 10px;border-radius:999px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
+    .cv-key i{width:14px;height:4px;border-radius:2px;display:inline-block;} .cv-key.off{opacity:.4;text-decoration:line-through;}
+    .cv-wrap{position:relative;}
+    .cv-svg{width:100%;height:auto;display:block;font-family:'Inter';}
+    .cv-grid{stroke:var(--line);stroke-width:1;} .cv-tick{font-size:11px;fill:var(--muted);}
+    .cv-line{fill:none;stroke-width:2.2;stroke-linejoin:round;} .cv-line.ours{stroke-width:3;}
+    .cv-hl{stroke:#8a919e;stroke-dasharray:3 3;} .cv-hover.hidden{display:none;}
+    .cv-tip{position:absolute;pointer-events:none;background:#0e1320;color:#e7edf5;border-radius:10px;padding:8px 12px;font-size:.8rem;display:flex;flex-direction:column;gap:2px;box-shadow:var(--shadow-h);}
+    .cv-tip i{width:10px;height:10px;border-radius:3px;display:inline-block;margin-right:6px;vertical-align:-1px;} .cv-tip em{font-style:normal;font-weight:700;margin-left:6px;}
+    /* results delta */
+    .chip.alt{margin-left:auto;border-style:dashed;}
+    .rx-row.delta .b::before{content:"";position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--line);}
+    .rx-row.delta .b i{background:#9fd6bd;} .rx-row.delta.neg .b i{background:#f1b1a9;}
+    .rx-row.delta.ours .b i{background:var(--brand);}
+    .rx-row .b i{left:0;}
+    /* race */
+    .race-box{position:relative;} .race-box .race-v{opacity:0;transition:opacity .4s;} .race-box.verdict .race-v{opacity:1;}
+    .race-box.typing .race-t::after{content:"\258B";animation:blink 1s steps(2) infinite;margin-left:1px;}
+    @keyframes blink{50%{opacity:0;}}
+    .race-play{margin-top:12px;}
+    /* reveal */
+    .rv{opacity:0;transform:translateY(18px);transition:opacity .7s ease,transform .7s ease;}
+    .rv.in{opacity:1;transform:none;}
+
+    .hero-logos{display:flex;align-items:center;justify-content:center;gap:34px;flex-wrap:wrap;margin:26px auto 0;}
+    .hero-logos img{height:34px;width:auto;display:block;transition:opacity .15s;}
+    .hero-logos img.gc{height:24px;}
+    .hero-logos a:hover img{opacity:.75;}
+    html.dark .hero-logos a,html.dark .uni-logos .logo-card{background:#fff;border-radius:10px;padding:6px 10px;}
+    @media(max-width:720px){.hero-logos{gap:20px;}.hero-logos img{height:26px;}.hero-logos img.gc{height:18px;}}
+  </style>
+</head>
+<body>
+
+  <!-- ======== NAV ======== -->
+  <nav class="topbar">
+    <div class="wrap">
+      <div class="nav-left">
+        <a class="nav-logo" href="https://mlv.kaist.ac.kr/" target="_blank" rel="noopener" title="MLV Lab — Machine Learning &amp; Vision Lab"><img src="static/logos/mlv_logo.png" alt="MLV Lab"></a>
+        <span class="nav-sep" aria-hidden="true"></span>
+        <a class="brand-mini" href="#top" aria-label="Echo-GRPO — home"><span>Echo&#8209;<b>GRPO</b></span></a>
+      </div>
+      <div class="nav-right">
+        <div class="navlinks">
+          <a href="#abstract">Abstract</a>
+          <a href="#background">Background</a>
+          <a href="#motivation">Motivation</a>
+          <a href="#method">Method</a>
+          <a href="#results">Results</a>
+          <a href="#analysis">Analysis</a>
+          <a href="#bibtex">BibTeX</a>
+        </div>
+        <button id="theme-toggle" class="theme-btn" type="button" aria-label="Toggle dark mode" title="Toggle dark mode" aria-pressed="false">
+          <svg class="ic-moon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+          <svg class="ic-sun" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.6v2.2M12 19.2v2.2M4.7 4.7l1.6 1.6M17.7 17.7l1.6 1.6M2.6 12h2.2M19.2 12h2.2M4.7 19.3l1.6-1.6M17.7 6.3l1.6-1.6"/></g></svg>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ======== HERO ======== -->
+  <header class="hero" id="top">
+    <div class="wrap">
+      <span class="badge"><i class="fas fa-award"></i> NeurIPS 2026</span>
+      <h1 class="title"><span class="brand">Reason in the Words You Speak</span>:<span class="title-2">Idiolectal Paraphrasing Off-Policy Traces for Reasoning Distillation in VideoLLMs</span></h1>
+      <p class="subtitle">Echo-GRPO rewrites a teacher's privileged reasoning into the student's own idiolect, so the reasoning that earns the reward is actually learned.</p>
+
+      <div class="authors">
+        <a class="au" href="https://simplewhite9.github.io/" target="_blank" rel="noopener">Ji Soo Lee<sup class="sup">1</sup></a>
+        <span class="au">Jinyoung Park<sup class="sup">1</sup></span>
+        <a class="au" href="https://www.seohyunleee.com/" target="_blank" rel="noopener">Seohyun Lee<sup class="sup">1</sup></a>
+        <a class="au" href="https://jonghakim35.github.io/" target="_blank" rel="noopener">Jongha Kim<sup class="sup">2</sup></a>
+        <span class="au">Joonmyung Choi<sup class="sup">2</sup></span><br>
+        <span class="au">Jinsung Yoon<sup class="sup">3</sup></span>
+        <a class="au" href="https://www.hyunwoojkim.com/home" target="_blank" rel="noopener">Hyunwoo J. Kim<sup class="sup">1,&dagger;</sup></a>
+      </div>
+      <div class="affil">
+        <span><sup class="sup">1</sup>&nbsp;KAIST</span>
+        <span><sup class="sup">2</sup>&nbsp;Korea University</span>
+        <span><sup class="sup">3</sup>&nbsp;Google Cloud AI Research</span>
+      </div>
+      <div class="notes"><span class="sup">&dagger;</span>&nbsp;Corresponding author</div>
+      <div class="hero-logos">
+        <a href="https://mlv.kaist.ac.kr/" target="_blank" rel="noopener"><img src="static/logos/mlv_logo.png" alt="MLV Lab"></a>
+        <a href="https://www.kaist.ac.kr/" target="_blank" rel="noopener"><img src="static/logos/kaist.png" alt="KAIST"></a>
+        <a href="https://www.korea.ac.kr/" target="_blank" rel="noopener"><img src="static/logos/korea.png" alt="Korea University"></a>
+        <a href="https://cloud.google.com/" target="_blank" rel="noopener"><img class="gc" src="static/logos/google_cloud.svg" alt="Google Cloud"></a>
+      </div>
+
+      <div class="buttons">
+        <a class="btn" href="https://arxiv.org/abs/2608.26684" target="_blank" rel="noopener"><i class="fas fa-file-lines"></i> arXiv</a>
+        <a class="btn" href="https://arxiv.org/pdf/2608.26684" target="_blank" rel="noopener"><i class="fas fa-file-pdf"></i> Paper</a>
+        <a class="btn" href="https://github.com/mlvlab/VideoEcho-R1" target="_blank" rel="noopener"><i class="fab fa-github"></i> Code</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- ======== TEASER ======== -->
+  <section class="video-sec" id="teaser">
+    <div class="wrap">
+      <figure class="fig fig-wide">
+        <a class="zoom" href="static/figures/fig1_motivation.png" target="_blank" rel="noopener">
+          <img src="static/figures/fig1_motivation.png" decoding="async" alt="Token-level log-probabilities under the student policy: the privileged trace of Mixed-Policy GRPO is full of low-probability (dark red) tokens such as 'school of fish', while the Echo-GRPO paraphrase says 'several fish' and stays in high-probability regions.">
+        </a>
+        <figcaption>
+          <b>Reasoning in the words you speak.</b> Token-level log-probabilities under the student policy
+          <code class="inl">&pi;&#952;&#8320;</code> (red = low probability). <i>Top:</i> Mixed-Policy GRPO makes the student imitate a
+          privileged trace from a stronger teacher, leaving semantically critical tokens such as &ldquo;school of fish&rdquo;
+          in low-likelihood regions. <i>Bottom:</i> Echo-GRPO paraphrases the same reasoning into the student's own idiolect
+          (&ldquo;school of fish&rdquo; &rarr; &ldquo;several fish&rdquo;), preserving the meaning while keeping every token in-distribution.
+        </figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- ======== NEWS ======== -->
+  <section id="news" class="news-sec">
+    <div class="wrap narrow">
+      <span class="eyebrow">News</span>
+      <ul class="newslist">
+        <li><span class="d">2026</span> <span>Accepted to <b>NeurIPS 2026</b> &#127881;</span></li>
+        <li><span class="d">Aug 27, 2026</span> <span>Paper is now on <a href="https://arxiv.org/abs/2608.26684" target="_blank" rel="noopener">arXiv</a>.</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ======== ABSTRACT ======== -->
+  <section class="alt" id="abstract">
+    <div class="wrap">
+      <span class="eyebrow">Overview</span>
+      <h2 class="section-title">Abstract</h2>
+      <div class="abstract narrow">
+        <p>
+          Recent large language models achieve strong performance on complex reasoning tasks, where reinforcement learning
+          with <b>Group Relative Policy Optimization (GRPO)</b> has emerged as a leading paradigm for optimizing models on
+          self-generated trajectories. However, the on-policy nature of GRPO bounds the model to the reasoning skills it can
+          already produce, restricting it from learning more advanced capabilities. Prior works inject privileged reasoning
+          traces from a stronger teacher policy to guide training, yet these traces are inherently out of distribution with
+          respect to the student policy. We observe that this mismatch between on-policy and off-policy causes
+          <b>gradient clipping on semantically critical reasoning tokens</b>, ultimately rewarding correct answers while leaving
+          the reasoning that justifies them unlearned. Hence, we propose <b>Echo-GRPO</b>, a framework that lets the model
+          reason in the words it speaks. Rather than imitating low-probability privileged traces from the teacher model,
+          Echo-GRPO rewrites them into the student policy's own <i>idiolect</i>, that is, its own characteristic vocabulary and
+          expression patterns, while preserving their semantics via <b>Dual-Reference Decoding</b>. We instantiate this
+          framework as <b>VideoEcho-R1</b> for video reasoning distillation, achieving consistent improvements across three
+          multimodal LLM backbones and five benchmarks. Finally, we show that our idiolectal paraphrasing is a plug-in module
+          that consistently improves both RL and supervised fine-tuning frameworks for reasoning distillation, demonstrating
+          that policy-aligned supervision extends beyond GRPO.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======== CONTRIBUTIONS ======== -->
+  <section>
+    <div class="wrap">
+      <span class="eyebrow">Contributions</span>
+      <h2 class="section-title">What&rsquo;s new</h2>
+      <div class="cards">
+        <div class="card">
+          <h3>A hidden failure mode</h3>
+          <p>In Mixed-Policy GRPO, trust-region clipping suppresses the gradient on <b>semantically critical tokens</b> of
+          privileged traces: the correct answer is rewarded, but the reasoning that justifies it is never learned.</p>
+        </div>
+        <div class="card">
+          <h3>Echo-GRPO &amp; Dual-Reference Decoding</h3>
+          <p>We paraphrase privileged traces into the student's own idiolect with a product of two references of the initial
+          policy, keeping the teacher's <b>meaning</b> and the student's <b>wording</b>.</p>
+        </div>
+        <div class="card">
+          <h3>VideoEcho-R1 &amp; a plug-in</h3>
+          <p>Consistent gains over GRPO, SFT and Mixed-Policy GRPO on <b>3 backbones &times; 5 video benchmarks</b>, and the
+          paraphrasing also improves other RL and SFT distillation frameworks.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======== BACKGROUND ======== -->
+  <section id="background">
+    <div class="wrap">
+      <span class="eyebrow">Background</span>
+      <h2 class="section-title">Video reasoning distillation with GRPO</h2>
+      <p class="lead">GRPO reinforces the model&rsquo;s own best rollouts, so it is bounded by the reasoning the model can already produce.
+      Mixed-Policy GRPO swaps one rollout for a <b>privileged trace</b> from a stronger teacher. Echo-GRPO paraphrases that trace first.</p>
+      <figure class="fig fig-wide">
+        <div class="viz" data-viz="pipeline"></div>
+        <figcaption><b>One training step, three variants.</b> Switch between GRPO, Mixed-Policy GRPO and Echo-GRPO and run a step: rollouts are
+        sampled, rewarded, and used for the group update. In Mixed-Policy GRPO the privileged trace&rsquo;s tokens (small squares) include grey
+        ones that receive no gradient; in Echo-GRPO the paraphrase is on-policy and nothing is clipped.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- ======== MOTIVATION ======== -->
+  <section class="alt" id="motivation">
+    <div class="wrap">
+      <span class="eyebrow">Motivation</span>
+      <h2 class="section-title">Rewarded for the answer, not the reasoning</h2>
+      <p class="lead">GRPO only reinforces reasoning the model can already produce. <b>Mixed-Policy GRPO</b> replaces one rollout
+      with a <b>privileged trace</b> from a stronger teacher (Seed1.5-VL). Here is what that trace looks like inside the update.</p>
+
+      <div class="grid2 wide-right">
+        <div class="video-card">
+          <video controls playsinline muted preload="metadata" poster="static/videos/robot_clip_poster.jpg" aria-label="Training example video: a woman's face is scraped by a wall, revealing mechanical parts">
+            <source src="static/videos/robot_clip.mp4" type="video/mp4">
+            Your browser does not support embedded video. <a href="static/videos/robot_clip.mp4">Watch the clip directly.</a>
+          </video>
+          <div class="vcap">Training example (OneThinker, from Video-Holmes), excerpt.</div>
+          <div class="qbox">
+            <b>Q.</b> The close-up shot of Woman No. 1's face being scraped by the wall hints at?
+            <ol type="A">
+              <li>The disguise mask is destroyed.</li>
+              <li>Memory storage location</li>
+              <li>Clone identification marker</li>
+              <li>Self-healing function activated</li>
+              <li>Emotion Simulation System</li>
+              <li class="gt">Robot identity exposed &#10003;</li>
+            </ol>
+          </div>
+        </div>
+        <div>
+          <figure class="fig">
+            <a class="zoom" href="static/figures/fig2b_clipped_example.png" target="_blank" rel="noopener">
+              <img src="static/figures/fig2b_clipped_example.png" loading="lazy" decoding="async" alt="The privileged trace inside the Mixed-Policy GRPO update: grey boxes mark clipped tokens, including 'robot' and 'scraping'; red shading shows per-token loss.">
+            </a>
+            <figcaption><b>Privileged trace inside the Mixed-Policy GRPO update.</b> Grey boxes are clipped tokens (no gradient);
+            red shading is the per-token loss.</figcaption>
+          </figure>
+          <div class="verdict">
+            <div class="ok"><b>&#10003; Correct answer (F)</b>The trace gets a high reward.</div>
+            <div class="no"><b>&#10007; &ldquo;robot&rdquo;, &ldquo;scraping&rdquo; clipped</b>The reasons behind it get no gradient.</div>
+          </div>
+        </div>
+      </div>
+
+      <h3 class="section-title mt40" style="font-size:1.35rem;margin-bottom:6px;">Why are privileged traces clipped?</h3>
+      <div class="eq">\[
+        \mathcal{J}_{\text{GRPO}}(\theta)=\frac{1}{G}\sum_{i=1}^{G}\frac{1}{|y_i|}\sum_{t}
+        \min\!\Big(\hat r_{i,t}\hat A_i,\ \textcolor{#c0392b}{\operatorname{clip}\big(\hat r_{i,t},\,1-\epsilon,\,1+\epsilon\big)\hat A_i}\Big),
+        \qquad \hat r_{i,t}=\frac{\pi_\theta(y_{i,t}\mid v,q,y_{i,&lt;t})}{\pi_{\text{old}}(y_{i,t}\mid v,q,y_{i,&lt;t})}
+      \]</div>
+      <div class="pipeline mt40" style="margin-top:20px;">
+        <div class="pstep"><div class="num">1</div><h4>Privileged trace &#7929;</h4><p>Comes from a stronger teacher; it is correct, so its advantage is positive (&Acirc; &gt; 0).</p></div>
+        <div class="arrow"><i class="fas fa-arrow-right"></i></div>
+        <div class="pstep"><div class="num">2</div><h4>Unfamiliar tokens</h4><p>Its tokens have low probability under the student, &pi;<sub>old</sub>(&#7929;<sub>t</sub>) &asymp; small.</p></div>
+        <div class="arrow"><i class="fas fa-arrow-right"></i></div>
+        <div class="pstep"><div class="num">3</div><h4>Ratio jumps</h4><p>The update pushes them up, so the ratio exceeds 1+&epsilon;.</p></div>
+        <div class="arrow"><i class="fas fa-arrow-right"></i></div>
+        <div class="pstep danger"><div class="num">4</div><h4>Clipped</h4><p>Outside the trust region, the gradient is zero, exactly on the tokens that carry the reasoning.</p></div>
+      </div>
+
+      <div class="grid2 mt40">
+        <figure class="fig">
+          <a class="zoom" href="static/figures/fig2a_clipping.png" target="_blank" rel="noopener">
+            <img src="static/figures/fig2a_clipping.png" loading="lazy" decoding="async" alt="Top: number of samples with clipped tokens over training, Mixed-Policy GRPO stays high while Echo-GRPO is lower. Bottom: semantic tokens are 71.8% of clipped tokens for Mixed-Policy GRPO versus 67.5% for Echo-GRPO.">
+          </a>
+          <figcaption><b>Clipping persists and targets semantic tokens.</b> <i>Top:</i> samples with at least one clipped token
+          during training. <i>Bottom:</i> share of semantically important tokens (e.g., nouns from the question and options)
+          among clipped tokens: <b>71.8%</b> for Mixed-Policy GRPO vs. 67.5% for Echo-GRPO.</figcaption>
+        </figure>
+        <div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Clipping method</th><th>Priv. trace</th><th class="colsep">Avg.</th><th>&Delta;</th></tr></thead>
+              <tbody>
+                <tr class="bad"><td>Mixed-Policy</td><td>OOD</td><td class="colsep">35.9</td><td>&ndash;</td></tr>
+                <tr><td>+ Unclip all tokens</td><td>OOD</td><td class="colsep">40.8</td><td>+4.9</td></tr>
+                <tr><td>+ Unclip random tokens</td><td>OOD</td><td class="colsep">48.4</td><td>+12.5</td></tr>
+                <tr><td><b>+ Unclip semantic tokens</b></td><td>OOD</td><td class="colsep best">52.0</td><td class="best">+16.1</td></tr>
+                <tr class="ours"><td>Echo-GRPO (Ours)</td><td>ID</td><td class="colsep">58.2</td><td>+22.3</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="tbl-cap"><b>Is semantic-token clipping the cause?</b> Restoring gradients for the same number of clipped tokens,
+          semantic tokens recover far more than random ones (+16.1 vs. +12.5). Avg. over VideoMMMU, MMVU and Video-Holmes (Qwen3-VL-4B).</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======== METHOD ======== -->
+  <section id="method">
+    <div class="wrap">
+      <span class="eyebrow">Method</span>
+      <h2 class="section-title">Echo-GRPO: reason in the words you speak</h2>
+      <p class="lead">Instead of imitating the privileged trace, Echo-GRPO <b>paraphrases it into the student's own idiolect</b>
+      with Dual-Reference Decoding (DRD), then uses the paraphrase in place of the privileged trace in the GRPO group.</p>
+
+      <figure class="fig fig-wide">
+        <a class="zoom" href="static/figures/fig3_overview.png" target="_blank" rel="noopener">
+          <img src="static/figures/fig3_overview.png" loading="lazy" decoding="async" alt="Echo-GRPO overview: Dual-Reference Decoding combines a semantic reference conditioned on the privileged trace with a distributional reference without it; the paraphrased trace joins the student's rollouts for reward and group computation.">
+        </a>
+        <figcaption><b>Overview of Echo-GRPO.</b> Given a video question and a privileged trace &#7929;, DRD combines two conditional
+        distributions of the initial policy &pi;&#952;&#8320; as a product of experts. The semantic reference keeps token selection faithful
+        to &#7929; (correcting &lsquo;bag&rsquo; to &lsquo;box&rsquo;); the distributional reference prefers what the student would naturally say
+        among semantically equivalent candidates (&lsquo;visible&rsquo; over &lsquo;shown&rsquo;).</figcaption>
+      </figure>
+
+      <figure class="fig fig-wide mt40">
+        <div class="viz" data-viz="drd"></div>
+        <figcaption><b>Dual-Reference Decoding, one token at a time.</b> The distributional reference (no trace) and the semantic reference
+        (top-k, conditioned on &#7929;) are multiplied and renormalized; a token wins only if both agree. Probabilities are the ones shown in Fig. 3 of the paper.</figcaption>
+      </figure>
+
+      <div class="eq mt40">\[
+        \pi_{\text{rewrite}}(y_t\mid y_{&lt;t},v,q,\tilde y, I)=\frac{1}{Z_t}\,
+        \underbrace{\pi_{\theta_0}(y_t\mid y_{&lt;t},v,q,I)}_{\text{distributional reference}}\cdot
+        \underbrace{\operatorname{top\text{-}k}\big(\pi_{\theta_0}(y_t\mid y_{&lt;t},v,q,\tilde y,I)\big)}_{\text{semantic reference}}
+      \]</div>
+
+      <div class="cards mt40">
+        <div class="card"><h3>Semantic reference</h3><p>The student conditioned on the privileged trace &#7929; proposes its top-k next tokens, so the paraphrase stays <b>faithful to the teacher's meaning</b>.</p></div>
+        <div class="card"><h3>Distributional reference</h3><p>The student without &#7929; scores the full vocabulary, so each token stays <b>likely under the student's own distribution</b>.</p></div>
+        <div class="card"><h3>Product of experts</h3><p>A token wins only if <b>both references agree</b>; when they disagree, DRD picks a token preferred by both in 85.6% of cases.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======== RESULTS ======== -->
+  <section class="alt" id="results">
+    <div class="wrap">
+      <span class="eyebrow">Experiments</span>
+      <h2 class="section-title">Main results</h2>
+      <p class="lead">Five video reasoning and general benchmarks, 8 frames per video. VideoEcho-R1 is trained with Echo-GRPO.</p>
+      <figure class="fig fig-wide" style="margin-bottom:28px;">
+        <div class="viz" data-viz="results"></div>
+        <figcaption><b>Explore the results.</b> Pick a backbone and a benchmark. Full numbers are in the table below.</figcaption>
+      </figure>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Model</th><th class="colsep">VideoMMMU</th><th>MMVU (mc)</th><th>Video-Holmes</th><th>VSI-Bench</th><th>VideoMME</th><th class="colsep">Avg.</th></tr></thead>
+          <tbody>
+            <tr class="group"><td colspan="7">InternVL3.5-4B</td></tr>
+            <tr><td>Base</td><td class="colsep">43.4</td><td>57.4</td><td>33.9</td><td>37.5</td><td>55.4</td><td class="colsep">45.5</td></tr>
+            <tr><td>+ SFT</td><td class="colsep">54.1</td><td>59.0</td><td>40.9</td><td>42.5</td><td>57.4</td><td class="colsep">50.8</td></tr>
+            <tr><td>+ GRPO</td><td class="colsep">50.4</td><td>61.1</td><td>40.0</td><td class="best">46.7</td><td>56.5</td><td class="colsep">50.9</td></tr>
+            <tr><td>+ SFT &rarr; GRPO</td><td class="colsep">49.8</td><td>61.3</td><td>39.4</td><td>37.8</td><td>57.6</td><td class="colsep">49.2</td></tr>
+            <tr><td>+ Mixed-Policy GRPO</td><td class="colsep">49.3</td><td>58.4</td><td>38.8</td><td>41.2</td><td>55.0</td><td class="colsep">48.5</td></tr>
+            <tr class="ours"><td>VideoEcho-R1 (4B)</td><td class="colsep">55.3</td><td>65.1</td><td>41.0</td><td>44.0</td><td>57.9</td><td class="colsep">52.7</td></tr>
+            <tr class="group"><td colspan="7">Qwen3-VL-4B</td></tr>
+            <tr><td>Base</td><td class="colsep">55.2</td><td>62.7</td><td>33.5</td><td>34.7</td><td>55.6</td><td class="colsep">48.3</td></tr>
+            <tr><td>+ SFT</td><td class="colsep">48.2</td><td>62.9</td><td>40.8</td><td>38.2</td><td>58.2</td><td class="colsep">49.7</td></tr>
+            <tr><td>+ GRPO</td><td class="colsep">56.8</td><td>68.0</td><td>43.3</td><td>50.8</td><td>60.7</td><td class="colsep">55.9</td></tr>
+            <tr><td>+ SFT &rarr; GRPO</td><td class="colsep">57.5</td><td>66.2</td><td>44.0</td><td>42.7</td><td>59.6</td><td class="colsep">54.0</td></tr>
+            <tr><td>+ Mixed-Policy GRPO</td><td class="colsep">42.1</td><td>41.9</td><td>23.6</td><td>35.2</td><td>54.5</td><td class="colsep">39.5</td></tr>
+            <tr class="ours"><td>VideoEcho-R1 (4B)</td><td class="colsep">59.1</td><td>68.8</td><td>46.7</td><td>50.9</td><td>60.7</td><td class="colsep">57.2</td></tr>
+            <tr class="group"><td colspan="7">Qwen3-VL-8B</td></tr>
+            <tr><td>Base</td><td class="colsep">56.3</td><td>60.6</td><td>36.5</td><td>40.2</td><td>60.0</td><td class="colsep">50.7</td></tr>
+            <tr><td>+ SFT</td><td class="colsep">57.0</td><td>71.0</td><td>42.7</td><td>39.8</td><td>60.7</td><td class="colsep">54.2</td></tr>
+            <tr><td>+ GRPO</td><td class="colsep">62.6</td><td>71.5</td><td>44.7</td><td class="best">51.1</td><td>61.0</td><td class="colsep best">58.2</td></tr>
+            <tr><td>+ SFT &rarr; GRPO</td><td class="colsep">61.7</td><td>69.9</td><td>44.6</td><td>46.6</td><td>60.6</td><td class="colsep">56.7</td></tr>
+            <tr><td>+ Mixed-Policy GRPO</td><td class="colsep">60.1</td><td>71.5</td><td>43.1</td><td>35.8</td><td>57.5</td><td class="colsep">53.6</td></tr>
+            <tr class="ours"><td>VideoEcho-R1 (8B)</td><td class="colsep">63.6</td><td>72.3</td><td>45.1</td><td>49.1</td><td>61.1</td><td class="colsep">58.2</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="scroll-hint"><i class="fas fa-arrows-left-right"></i> &nbsp;Scroll horizontally to see all columns</p>
+
+      <div class="stats">
+        <div class="stat"><div class="n brand">57.2</div><p>VideoEcho-R1 average on Qwen3-VL-4B, +1.3 over GRPO and +7.5 over SFT.</p></div>
+        <div class="stat"><div class="n bad">39.5</div><p>Mixed-Policy GRPO collapses below the 48.3 base model when off-policy traces are injected naively.</p></div>
+        <div class="stat"><div class="n good">+4.2 / +17.7 / +4.6</div><p>Gain over Mixed-Policy GRPO on InternVL3.5-4B, Qwen3-VL-4B and Qwen3-VL-8B.</p></div>
+      </div>
+
+      <h3 class="section-title mt40" style="font-size:1.35rem;margin-bottom:8px;">Comparison with reasoning distillation frameworks</h3>
+      <p class="lead" style="margin-bottom:22px;">Echo-GRPO outperforms LUFFY and OPSD, and adding idiolectal paraphrasing (+ Echo) improves existing frameworks as a plug-in.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Method (Qwen3-VL-4B)</th><th class="colsep">VideoMMMU</th><th>MMVU (mc)</th><th>Video-Holmes</th><th>VSI-Bench</th><th>VideoMME</th><th class="colsep">Avg.</th></tr></thead>
+          <tbody>
+            <tr><td>RL w/ SFT</td><td class="colsep">52.8</td><td>61.0</td><td>39.1</td><td>45.5</td><td>53.5</td><td class="colsep">50.4</td></tr>
+            <tr class="plug"><td>RL w/ SFT + Echo</td><td class="colsep">57.2</td><td>62.1</td><td>40.5</td><td>47.1</td><td>58.0</td><td class="colsep">53.0</td></tr>
+            <tr><td>LUFFY<sup>&lowast;</sup></td><td class="colsep">55.2</td><td>62.6</td><td>33.3</td><td>50.1</td><td>58.3</td><td class="colsep">51.9</td></tr>
+            <tr class="plug"><td>LUFFY + Echo</td><td class="colsep">56.0</td><td>63.8</td><td>32.8</td><td>50.3</td><td>58.3</td><td class="colsep">52.2</td></tr>
+            <tr><td>OPSD-JSD<sup>&lowast;</sup></td><td class="colsep">56.1</td><td>63.8</td><td>36.9</td><td>50.8</td><td>55.9</td><td class="colsep">52.7</td></tr>
+            <tr><td>OPSD-IKL<sup>&lowast;</sup></td><td class="colsep">55.9</td><td>63.5</td><td>34.1</td><td>49.4</td><td>56.0</td><td class="colsep">51.8</td></tr>
+            <tr class="ours"><td>Echo-GRPO</td><td class="colsep">59.1</td><td>68.8</td><td>46.7</td><td>50.9</td><td>60.7</td><td class="colsep">57.2</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="tbl-cap"><sup>&lowast;</sup> Frameworks originally proposed for LLMs, adapted to video question answering under the same protocol.
+      Idiolectal paraphrasing also improves SFT (50.6 &rarr; 52.6) and SFT &rarr; GRPO (55.9 &rarr; 58.8) on three reasoning benchmarks.</p>
+    </div>
+  </section>
+
+  <!-- ======== ANALYSIS ======== -->
+  <section id="analysis">
+    <div class="wrap">
+      <span class="eyebrow">Analysis</span>
+      <h2 class="section-title">The reasoning is now learned</h2>
+
+      <figure class="fig fig-wide">
+        <div class="viz" data-viz="trace"><noscript><img src="static/figures/robot_clipping_compare.png" alt="Same training example and step: in the Mixed-Policy privileged trace 'robot' is clipped; in the Echo-GRPO paraphrase no token is clipped."></noscript></div>
+        <figcaption><b>Watch one GRPO update on the running example.</b> Toggle between the privileged trace (Mixed-Policy GRPO) and its
+        idiolectal paraphrase (Echo-GRPO), then press play. Each token is shaded by its loss; tokens whose importance ratio leaves the trust
+        region turn grey (clipped). Hover any token for its log-probability and ratio. Data logged at the same training step for both runs.</figcaption>
+      </figure>
+
+      <figure class="fig fig-wide mt40">
+        <a class="zoom" href="static/figures/fig4_dynamics.png" target="_blank" rel="noopener">
+          <img src="static/figures/fig4_dynamics.png" loading="lazy" decoding="async" alt="Training curves of accuracy, reward and confidence for GRPO, Mixed-Policy GRPO and Echo-GRPO.">
+        </a>
+        <figcaption><b>Training dynamics.</b> Mixed-Policy GRPO starts with higher accuracy but learns slowly, while Echo-GRPO keeps
+        improving and surpasses all baselines. Echo-GRPO also preserves model confidence, whereas GRPO steadily declines and
+        Mixed-Policy collapses early.</figcaption>
+      </figure>
+
+      <figure class="fig fig-wide mt40">
+        <a class="zoom" href="static/figures/fig5_plugin.png" target="_blank" rel="noopener">
+          <img src="static/figures/fig5_plugin.png" loading="lazy" decoding="async" alt="Training curves of LUFFY vs LUFFY + Echo and RL w/ SFT vs RL w/ SFT + Echo.">
+        </a>
+        <figcaption><b>Idiolectal paraphrasing as a plug-in.</b> Adding Echo to LUFFY and RL w/ SFT consistently improves confidence,
+        accuracy and reward throughout training.</figcaption>
+      </figure>
+
+      <div class="grid2 mt40">
+        <figure class="fig">
+          <a class="zoom" href="static/figures/fig6_generalization.png" target="_blank" rel="noopener">
+            <img src="static/figures/fig6_generalization.png" loading="lazy" decoding="async" alt="Bar chart of in-distribution and out-of-distribution accuracy for all methods; Echo-GRPO is best in both.">
+          </a>
+          <figcaption><b>In- and out-of-distribution generalization.</b> Echo-GRPO is best in both regimes (78.3 ID, 57.2 OOD),
+          suggesting it learns to reason rather than mimic.</figcaption>
+        </figure>
+        <figure class="fig">
+          <a class="zoom" href="static/figures/fig_token_selection.png" target="_blank" rel="noopener">
+            <img src="static/figures/fig_token_selection.png" loading="lazy" decoding="async" alt="Bar chart: when references disagree, DRD selects a jointly preferred token in 85.6% of cases.">
+          </a>
+          <figcaption><b>Token selection of DRD.</b> When the two references disagree, DRD selects a token preferred by both in
+          <b>85.6%</b> of cases, supporting the product-of-experts formulation.</figcaption>
+        </figure>
+      </div>
+
+      <h3 class="section-title mt40" style="font-size:1.35rem;margin-bottom:20px;">Grounded reasoning, not imitated format</h3>
+      <div class="viz race" data-viz="race">
+        <div class="grid2 wide-right">
+          <div class="video-card">
+            <video controls playsinline muted preload="metadata" poster="static/videos/brandon_poster.jpg" aria-label="Video-Holmes test video at 8x speed">
+              <source src="static/videos/brandon_8x.mp4" type="video/mp4">
+              Your browser does not support embedded video. <a href="static/videos/brandon_8x.mp4">Watch the clip directly.</a>
+            </video>
+            <div class="vcap">Video-Holmes test video, played at 8&times; speed. Press play: both answers are typed in sync with the clip.</div>
+            <div class="qbox"><b>Q.</b> What is the real relationship between Brandon and the shirt guy?<br>
+            <span style="color:var(--good);font-weight:700;">GT: B. Kidnapper and kidnapped person</span></div>
+            <button type="button" class="tv-play race-play"><i class="fa-solid fa-play"></i> Play the comparison</button>
+          </div>
+          <div>
+            <div class="quote bad race-box"><b>Mixed-Policy GRPO <span class="race-v">&rarr; A (neighbor) &#10007;</span></b><i class="race-t">&ldquo;&hellip;since this is a fictional context, we need to infer based on the provided information. Wait, this is part of a very long series, so the answer is likely based on the specific narrative&hellip;&rdquo;</i></div>
+            <div class="quote good race-box"><b>Echo-GRPO (Ours) <span class="race-v">&rarr; B &#10003;</span></b><i class="race-t">&ldquo;Brandon is seen entering the house, confronting the shirt guy, and later being physically restrained and threatened&hellip; This relationship is most consistent with a kidnapper and kidnapped person dynamic.&rdquo;</i></div>
+            <p class="tbl-cap" style="text-align:left;margin-top:4px;">Mixed-Policy GRPO copies the format of privileged traces and speculates; Echo-GRPO reasons from what actually happens on screen.
+            <a href="static/figures/fig7_qualitative.png" target="_blank" rel="noopener">Full figure</a>.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======== BIBTEX ======== -->
+  <section class="alt" id="bibtex">
+    <div class="wrap narrow">
+      <span class="eyebrow">Cite</span>
+      <h2 class="section-title">BibTeX</h2>
+      <div class="bibwrap">
+        <button class="copy-btn" onclick="copyBib()"><i class="far fa-copy"></i> Copy</button>
+        <pre class="bibtex" id="bib"><span class="k">@inproceedings</span>{lee2026reason,
+  <span class="k">title</span>     = {<span class="v">Reason in the Words You Speak: Idiolectal Paraphrasing
+               Off-Policy Traces for Reasoning Distillation in VideoLLMs</span>},
+  <span class="k">author</span>    = {<span class="v">Lee, {Ji Soo} and Park, Jinyoung and Lee, Seohyun and Kim, Jongha
+               and Choi, Joonmyung and Yoon, Jinsung and Kim, Hyunwoo J.</span>},
+  <span class="k">booktitle</span> = {<span class="v">NeurIPS</span>},
+  <span class="k">year</span>      = {<span class="v">2026</span>}
+}</pre>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap">
+      <a class="lab-logo" href="https://mlv.kaist.ac.kr/" target="_blank" rel="noopener"><img src="static/logos/mlv_logo.png" alt="MLV Lab" style="height:64px;border-radius:0;box-shadow:none;"></a>
+      <p class="lab-cap">Machine Learning &amp; Vision Lab</p>
+      <div class="uni-logos">
+        <a class="logo-card" href="https://www.kaist.ac.kr/" target="_blank" rel="noopener"><img src="static/logos/kaist.png" alt="KAIST"></a>
+        <a class="logo-card" href="https://www.korea.ac.kr/" target="_blank" rel="noopener"><img src="static/logos/korea.png" alt="Korea University"></a>
+        <a class="logo-card" href="https://cloud.google.com/" target="_blank" rel="noopener"><img src="static/logos/google_cloud.svg" alt="Google Cloud" style="height:34px;"></a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="static/js/echo-data.js"></script>
+  <script src="static/js/echo-viz.js"></script>
+  <script>
+    function copyBib(){
+      const t=document.getElementById('bib').innerText;
+      navigator.clipboard.writeText(t).then(()=>{
+        const b=document.querySelector('.copy-btn');
+        const o=b.innerHTML;b.innerHTML='<i class="fas fa-check"></i> Copied';
+        setTimeout(()=>b.innerHTML=o,1600);
+      });
+    }
+    (function(){
+      var btn=document.getElementById('theme-toggle');
+      if(!btn)return;
+      btn.addEventListener('click',function(){
+        var dark=document.documentElement.classList.toggle('dark');
+        try{localStorage.setItem('theme',dark?'dark':'light');}catch(e){}
+        btn.setAttribute('aria-pressed',String(dark));
+      });
+    })();
+    window.addEventListener('load',function(){
+      if(window.renderMathInElement){renderMathInElement(document.body,{delimiters:[{left:'\\[',right:'\\]',display:true}],throwOnError:false});}
+    });
+  </script>
+</body>
+</html>
